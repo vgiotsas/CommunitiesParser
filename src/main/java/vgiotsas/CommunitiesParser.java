@@ -18,6 +18,9 @@ class CommunitiesParser {
         this.properties = properties;
     }
 
+    /**
+     * Executes the different phases of the parsing process
+     */
     void startParser(){
         this.ixpMembers = IXPDataParser.getIXPMembers(properties.get("ix_dataset"), properties.get("ix_asn_dataset"));
         this.relationships = readRelationships(properties.get("relationships_file"));
@@ -27,16 +30,35 @@ class CommunitiesParser {
                 properties.get("communities"),
                 "",
                 "");
-        ParsingResult initialPass = getAnnotatedPaths(optionalArgs);
+        // Run an initial pass to find if there are any routes annotated with the target communities
+        ParsingResult result = getAnnotatedPaths(optionalArgs);
 
-        if (initialPass.getRoutes().size() > 0){
+        // If the initial pass discovered annotated routes, filter-out the unstable ones
+        int routesNum = 0;
+        for (String k: result.getRoutes().keySet()) {
+            routesNum += result.getRoutes().get(k).size();
+        }
+
+        System.out.println("Annotated routes after initial pass: " + routesNum);
+        if (routesNum > 0){
+
             optionalArgs = this.constructOptionalArgs(
-                    String.join(", ", initialPass.getCollectors()),
+                    String.join(", ", result.getCollectors()),
                     "",
-                    String.join(", ", initialPass.getPeers()),
-                    String.join(", ", initialPass.getPrefixes())
+                    String.join(", ", result.getPeers()),
+                    String.join(", ", result.getPrefixes())
                     );
-            filterUnstablePaths(optionalArgs, initialPass.getRoutes());
+            result.setRoutes(filterUnstablePaths(optionalArgs, result.getRoutes()));
+            // check if there are any routes left after filtering-out the unstable ones
+            routesNum = 0;
+            for (String k: result.getRoutes().keySet()) {
+                routesNum += result.getRoutes().get(k).size();
+            }
+            System.out.println("Annotated routes after initial pass: " + routesNum);
+            // if we still have routes left, start monitoring their updates for the duration of the measurement period
+            if (routesNum > 0){
+
+            }
         }
     }
 
@@ -45,7 +67,7 @@ class CommunitiesParser {
      * @param path The AS path that is possibly prepended
      * @return an ArrayList with the hops in the non-prepended path
      */
-    ArrayList<String> removePrepending(String[] path) {
+    private ArrayList<String> removePrepending(String[] path) {
 
         ArrayList<String> npPath = new ArrayList<>();
         // Always add first value
@@ -298,10 +320,15 @@ class CommunitiesParser {
     }
 
     /**
+     * This function receives the annotated paths collected in the initial pass and monitors the BGP updates for 2 days
+     * to detect changes in the communities values of these paths. Paths that experience changes during this time window
+     * are discarded to keep only the stable paths that are consistently annotated with the target community during the
+     * monitoring period.
      *
-     * @param optionalArgs
+     * @param optionalArgs optional arguments of the bgpreader command to filter the parsed BGP data
+     * @param initialRoutes the routes initially annotated with a target community
      */
-    private void filterUnstablePaths(String optionalArgs, HashMap<String, HashMap<String, Route>> initialRoutes){
+    private HashMap<String, HashMap<String, Route>> filterUnstablePaths(String optionalArgs, HashMap<String, HashMap<String, Route>> initialRoutes){
         String command = properties.get("bgpreader_bin") +
                 " -w " + this.properties.get("start") + "," + this.properties.get("end") +
                 " -t ribs" +
@@ -351,6 +378,8 @@ class CommunitiesParser {
         } catch (IOException e) {
             e.printStackTrace();
         }
+
+        return initialRoutes;
     }
 
 }

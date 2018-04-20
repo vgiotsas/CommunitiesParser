@@ -3,7 +3,7 @@ package vgiotsas;
 import java.util.HashSet;
 import java.util.HashMap;
 
-public class ParsingResult {
+class ParsingResult {
 
     private HashSet<String> collectors;
     private HashSet<String> peers;
@@ -20,19 +20,23 @@ public class ParsingResult {
         this.routes = routes;
     }
 
-    public HashSet<String> getCollectors() {
+    HashSet<String> getCollectors() {
         return collectors;
     }
 
-    public HashSet<String> getPeers() {
+    HashSet<String> getPeers() {
         return peers;
     }
 
-    public HashSet<String> getPrefixes() {
+    HashSet<String> getPrefixes() {
         return prefixes;
     }
 
-    public HashMap<String, HashMap<String, Route>> getRoutes() {
+    HashMap<String, HashMap<String, Route>> getRoutes() {
         return routes;
+    }
+
+    void setRoutes(HashMap<String, HashMap<String, Route>> routes) {
+        this.routes = routes;
     }
 }
