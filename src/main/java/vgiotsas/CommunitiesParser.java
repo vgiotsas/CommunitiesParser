@@ -12,7 +12,7 @@ class CommunitiesParser {
     private HashMap<String, String> routeServerASNs;
     private HashMap<String, List<String>> ixpMembers = null;
     private HashMap<String, Integer> relationships = null;
-    private HashMap<String, String> properties = null;
+    private HashMap<String, String> properties;
 
     CommunitiesParser(HashMap<String, String> properties) {
         this.properties = properties;
@@ -31,7 +31,9 @@ class CommunitiesParser {
                 "",
                 "");
         // Run an initial pass to find if there are any routes annotated with the target communities
-        ParsingResult result = getAnnotatedPaths(optionalArgs);
+        int start_ts = Integer.parseInt(this.properties.get("start"));
+        int init_start = start_ts - 3600*24;
+        ParsingResult result = getAnnotatedPaths(optionalArgs, init_start, start_ts);
 
         // If the initial pass discovered annotated routes, filter-out the unstable ones
         int routesNum = 0;
@@ -41,23 +43,31 @@ class CommunitiesParser {
 
         System.out.println("Annotated routes after initial pass: " + routesNum);
         if (routesNum > 0){
-
+            int stability_seconds = Integer.parseInt(this.properties.get("stability_hours")) * 3600;
+            int stability_end = start_ts + stability_seconds;
             optionalArgs = this.constructOptionalArgs(
                     String.join(", ", result.getCollectors()),
                     "",
                     String.join(", ", result.getPeers()),
                     String.join(", ", result.getPrefixes())
                     );
-            result.setRoutes(filterUnstablePaths(optionalArgs, result.getRoutes()));
+            result.setRoutes(filterUnstablePaths(optionalArgs, result.getRoutes(), start_ts, stability_end));
             // check if there are any routes left after filtering-out the unstable ones
             routesNum = 0;
             for (String k: result.getRoutes().keySet()) {
                 routesNum += result.getRoutes().get(k).size();
             }
             System.out.println("Annotated routes after initial pass: " + routesNum);
-            // if we still have routes left, start monitoring their updates for the duration of the measurement period
+            // if we still have annotated routes left, start monitoring their updates for the duration of the measurement period
             if (routesNum > 0){
-
+                int monitoring_end = Integer.parseInt(this.properties.get("end"));
+                optionalArgs = this.constructOptionalArgs(
+                        String.join(", ", result.getCollectors()),
+                        "",
+                        String.join(", ", result.getRoutes().keySet()),
+                        String.join(", ", result.getPrefixes())
+                );
+                result.setRoutes(monitorAnnotatedPaths(optionalArgs, result.getRoutes(), stability_end, monitoring_end));
             }
         }
     }
@@ -245,9 +255,7 @@ class CommunitiesParser {
      * @return ParsingResult object that stores the results of the BGP parsing process, including the annotated routes,
      * and the collectors, peers, and prefixes with annotated annotated routes.
      */
-    private ParsingResult getAnnotatedPaths(String optionalArgs){
-        int init_start = Integer.parseInt(this.properties.get("start")) - 3600 * 24;
-        String init_end = this.properties.get("start");
+    private ParsingResult getAnnotatedPaths(String optionalArgs, int init_start, int init_end){
         String command = properties.get("bgpreader_bin") +
                 " -w " + init_start  + "," + init_end +
                 " -t ribs" +
@@ -261,7 +269,7 @@ class CommunitiesParser {
         HashMap<String, HashMap<String, Route> > annotatedRoutes = new HashMap<>();
 
         HashSet<String> targetCommunities = new HashSet<>(Arrays.asList(this.properties.get("communities").split(",")));
-        Process child = null;
+        Process child;
         try {
             child = Runtime.getRuntime().exec(command);
             BufferedReader in = new BufferedReader(new InputStreamReader(child.getInputStream()));
@@ -320,22 +328,27 @@ class CommunitiesParser {
     }
 
     /**
-     * This function receives the annotated paths collected in the initial pass and monitors the BGP updates for 2 days
-     * to detect changes in the communities values of these paths. Paths that experience changes during this time window
-     * are discarded to keep only the stable paths that are consistently annotated with the target community during the
-     * monitoring period.
+     * This function receives the annotated paths collected in the initial pass and monitors the BGP updates for the
+     * duration of the 'stability_period' property to detect changes in the communities values of these paths.
+     * Paths that experience changes during this time window are discarded to keep only the stable paths that are
+     * consistently annotated with the target community during the monitoring period.
      *
      * @param optionalArgs optional arguments of the bgpreader command to filter the parsed BGP data
      * @param initialRoutes the routes initially annotated with a target community
      */
-    private HashMap<String, HashMap<String, Route>> filterUnstablePaths(String optionalArgs, HashMap<String, HashMap<String, Route>> initialRoutes){
+    private HashMap<String, HashMap<String, Route>> filterUnstablePaths(
+            String optionalArgs, HashMap<String,
+            HashMap<String, Route>> initialRoutes,
+            int start_ts,
+            int end_ts)
+    {
         String command = properties.get("bgpreader_bin") +
-                " -w " + this.properties.get("start") + "," + this.properties.get("end") +
+                " -w " + start_ts + "," + end_ts +
                 " -t ribs" +
                 optionalArgs;
         System.out.println(command);
 
-        Process child = null;
+        Process child;
         try {
             child = Runtime.getRuntime().exec(command);
             BufferedReader in = new BufferedReader(new InputStreamReader(child.getInputStream()));
@@ -348,17 +361,11 @@ class CommunitiesParser {
                 //  <communities>|<old-state>|<new-state>
                 // https://bgpstream.caida.org/v2-beta
                 String[] bgpFields = line.split("\\|");
-                if (bgpFields[1].equals("R") && bgpFields.length > 9){
-                    // For each community attached in the path that is part of the target communities provided by the
-                    // user, find which AS link it annotates and inster the annotated BGP route in a HashMap that stores
-                    // the annotated routes and the corresponding communities
-
-                    String timestamp = bgpFields[2].split("\\.")[0];
+                if (bgpFields[1].equals("R") && bgpFields.length > 13){
                     String peerIp = bgpFields[8];
                     String prefix = bgpFields[9];
                     // If the route was initially annotated with a target community, check if it's still annotated
                     // with the same community
-
                     if (initialRoutes.containsKey(peerIp) && initialRoutes.get(peerIp).containsKey(prefix)){
                         List<String> attachedCommunities = Arrays.asList(bgpFields[13].split(" "));
                         Route  r = initialRoutes.get(peerIp).get(prefix);
@@ -380,6 +387,69 @@ class CommunitiesParser {
         }
 
         return initialRoutes;
+    }
+
+    /**
+     * The function that monitors the
+     * @param optionalArgs
+     * @param annotatedRoutes
+     * @return
+     */
+    private HashMap<String, HashMap<String, Route>> monitorAnnotatedPaths(
+            String optionalArgs, HashMap<String,
+            HashMap<String, Route>> annotatedRoutes,
+            int start_ts,
+            int end_ts){
+
+        String command = properties.get("bgpreader_bin") +
+                " -w " + start_ts + "," + end_ts +
+                " -t updates" +
+                optionalArgs;
+        System.out.println(command);
+
+        Process child;
+        try {
+            child = Runtime.getRuntime().exec(command);
+            BufferedReader in = new BufferedReader(new InputStreamReader(child.getInputStream()));
+            String line;
+            while ((line = in.readLine()) != null) {
+                // Format of bgpreader output:
+                // <rec-type>|<elem-type>|<rec-ts-sec>.<rec-ts-usec>| \
+                //  <project>|<collector>|<router>|<router-ip>|<peer-ASN>|<peer-IP>| \
+                //  <prefix>|<next-hop-IP>|<AS-path>|<origin-AS>| \
+                //  <communities>|<old-state>|<new-state>
+                // https://bgpstream.caida.org/v2-beta
+                String[] bgpFields = line.split("\\|");
+                if ( bgpFields.length > 9) {
+                    String timestamp = bgpFields[2].split("\\.")[0];
+                    String peerIp = bgpFields[8];
+                    String prefix = bgpFields[9];
+
+                    if (bgpFields[1].equals("A")) {
+
+                        // If the route is not annotated with the target community, set the status to withrawn,
+                        // otherwise set the status to activated (if it has previously withdrawn).
+                        if (annotatedRoutes.containsKey(peerIp) && annotatedRoutes.get(peerIp).containsKey(prefix)) {
+                            List<String> attachedCommunities = Arrays.asList(bgpFields[13].split(" "));
+                            Route r = annotatedRoutes.get(peerIp).get(prefix);
+                            r.updateStatus(attachedCommunities.contains(r.getTargetCommunity()) ? 1 : 0, timestamp);
+                        }
+                    }
+                    // If the route was withdrawn set the status to withdrawn
+                    else if (bgpFields[1].equals("W")) {
+                        Route r = annotatedRoutes.get(peerIp).get(prefix);
+                        r.updateStatus(0, timestamp);
+                    }
+
+                }
+            }
+
+            in.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        return annotatedRoutes;
     }
 
 }
