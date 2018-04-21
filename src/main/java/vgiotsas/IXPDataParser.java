@@ -11,11 +11,11 @@ import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 
-public class IXPDataParser {
+class IXPDataParser {
 
     private static final String USER_AGENT = "Mozilla/5.0";
 
-    public static HashMap<String, List<String>> getIXPMembers(String ix_file, String ixasn_file) {
+    static HashMap<String, List<String>> getIXPMembers(String ix_file, String ixasn_file) {
         HashMap<String, List<String>> ixpMembers = new HashMap<>();
         HashMap<String, String> ixpIdNames = new HashMap<>();
 
@@ -48,7 +48,7 @@ public class IXPDataParser {
      * Queries the PeeringDB and Euro-IX data to collect the ASNs used by IXP route servers
      * @return HashSet<Integer> The set of Route Server ASNs
      */
-    public static HashMap<String, String> getRouteServerASNs() {
+    static HashMap<String, String> getRouteServerASNs() {
         String pdbUrl = "https://www.peeringdb.com/api/net?info_type=Route%20Server";
         String euroixUrl = "https://www.euro-ix.net/csv/ixp-service-matrix";
         ArrayList<String> pdbResponse = IXPDataParser.sendGet(pdbUrl);
