@@ -33,7 +33,7 @@ class CommunitiesParser {
         // Run an initial pass to find if there are any routes annotated with the target communities
         int start_ts = Integer.parseInt(this.properties.get("start"));
         int init_start = start_ts - 3600*24;
-        ParsingResult result = getAnnotatedPaths(optionalArgs, init_start, start_ts);
+        Result result = getAnnotatedPaths(optionalArgs, init_start, start_ts);
 
         // If the initial pass discovered annotated routes, filter-out the unstable ones
         int routesNum = 0;
@@ -68,6 +68,8 @@ class CommunitiesParser {
                         String.join(", ", result.getPrefixes())
                 );
                 result.setRoutes(monitorAnnotatedPaths(optionalArgs, result.getRoutes(), stability_end, monitoring_end));
+                // Parse the results to generate the timeline of routes annotated with target communities
+                HashMap<String, Result.TimeLine> communitiesTimeline = result.getCommunitiesTimeline();
             }
         }
     }
@@ -252,10 +254,10 @@ class CommunitiesParser {
      * paths.
      *
      * @param optionalArgs optional arguments of the bgpreader command to filter the parsed BGP data
-     * @return ParsingResult object that stores the results of the BGP parsing process, including the annotated routes,
+     * @return Result object that stores the results of the BGP parsing process, including the annotated routes,
      * and the collectors, peers, and prefixes with annotated annotated routes.
      */
-    private ParsingResult getAnnotatedPaths(String optionalArgs, int init_start, int init_end){
+    private Result getAnnotatedPaths(String optionalArgs, int init_start, int init_end){
         String command = properties.get("bgpreader_bin") +
                 " -w " + init_start  + "," + init_end +
                 " -t ribs" +
@@ -324,7 +326,7 @@ class CommunitiesParser {
             e.printStackTrace();
         }
 
-        return new ParsingResult(usefulCollectors, usefulPeers, usefulPrefixes, annotatedRoutes);
+        return new Result(usefulCollectors, usefulPeers, usefulPrefixes, annotatedRoutes);
     }
 
     /**
@@ -335,6 +337,8 @@ class CommunitiesParser {
      *
      * @param optionalArgs optional arguments of the bgpreader command to filter the parsed BGP data
      * @param initialRoutes the routes initially annotated with a target community
+     * @return Object that stores the results of the BGP parsing process, including the annotated routes, the
+     * collectors, peers, and prefixes with annotated annotated routes.
      */
     private HashMap<String, HashMap<String, Route>> filterUnstablePaths(
             String optionalArgs, HashMap<String,
@@ -390,10 +394,15 @@ class CommunitiesParser {
     }
 
     /**
-     * The function that monitors the
-     * @param optionalArgs
-     * @param annotatedRoutes
-     * @return
+     * The function that monitors the annotated paths for changes in the communities attribute or explicit withdrawals
+     * Every time a change is detected the status of the route is updated, and the corresponding timestamp is recorded.
+     * At the end of the measurement period for every annotated route we have a list of timestamps when the route
+     * changed, and a list of timestamps when the route returned to the baseline target community.
+     *
+     * @param optionalArgs optional arguments of the bgpreader command to filter the parsed BGP data
+     * @param annotatedRoutes the stable routes annotated with a target community
+     * @return Object that stores the results of the BGP parsing process, including the annotated routes, and the
+     * collectors, peers, and prefixes with annotated annotated routes.
      */
     private HashMap<String, HashMap<String, Route>> monitorAnnotatedPaths(
             String optionalArgs, HashMap<String,
