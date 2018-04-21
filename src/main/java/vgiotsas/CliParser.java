@@ -12,7 +12,7 @@ import java.util.HashMap;
 
 import static org.kohsuke.args4j.ExampleMode.ALL;
 
-public class CliParser {
+class CliParser {
 
     @Option(name = "--period",
             required=true,
@@ -47,7 +47,7 @@ public class CliParser {
         } catch (ParseException e) {
             e.printStackTrace();
         }
-        return date.getTime()/1000;
+        return (date != null ? date.getTime() : 0) /1000;
     }
 
     /**
@@ -55,7 +55,7 @@ public class CliParser {
      * @param args The list of the provided command-line arguments
      * @return ArrayList<String> The list of lines in the response body
      */
-    public HashMap<String, String> cliParser(String[] args){
+    HashMap<String, String> cliParser(String[] args){
         CmdLineParser parser = new CmdLineParser(this);
         try {
             // parse the arguments.

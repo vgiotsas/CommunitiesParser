@@ -7,10 +7,10 @@ import java.io.InputStream;
 import java.util.Properties;
 import java.io.FileNotFoundException;
 
-public class ConfigReader {
+class ConfigReader {
     private InputStream inputStream;
 
-    public HashMap<String, String> getPropValues() throws IOException {
+    HashMap<String, String> getPropValues() throws IOException {
         HashMap<String, String> properties = new HashMap<>();
         try {
             Properties prop = new Properties();
@@ -28,7 +28,9 @@ public class ConfigReader {
         } catch (Exception e) {
             System.out.println("Exception: " + e);
         } finally {
-            inputStream.close();
+            if(inputStream != null){
+                inputStream.close();
+            }
         }
         return properties;
     }
