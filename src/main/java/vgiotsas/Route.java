@@ -42,7 +42,7 @@ public class Route {
         return tsWithdrawn;
     }
 
-    public List<Integer> getTsReturned() {
+    public List<Integer> getTsActivated() {
         return tsActivated;
     }
 
