@@ -15,6 +15,40 @@ class IXPDataParser {
 
     private static final String USER_AGENT = "Mozilla/5.0";
 
+    /**
+     * Extract and facility AS members from PeeringDB
+     * @param pdbFacUrl The URL of the PeeringDB API endpoint
+     * @return HashMap<String, List<String>> The mapping between facility names and the ASNs present at them
+     */
+    static HashMap<String, List<String>> getFacilityMembers(String pdbFacUrl){
+        ArrayList<String> pdbResponse = IXPDataParser.sendGet(pdbFacUrl);
+        JSONObject pdbData = IXPDataParser.parseJson(String.join("", pdbResponse));
+        HashMap<String, List<String>> facMembers = new HashMap<>();
+        JSONArray nets_array = (JSONArray) pdbData.get("data");
+        if (nets_array != null){
+            for (Object obj : nets_array) {
+                if (obj instanceof JSONObject) {
+                    JSONObject jsonObj = (JSONObject) obj;
+
+                    String asn = Integer.toString((int) (long) jsonObj.get("local_asn"));
+                    String name = jsonObj.get("name").toString();
+                    if (!facMembers.containsKey(name)) {
+                        facMembers.put(name, new ArrayList<>());
+                    }
+                    facMembers.get(name).add(asn);
+                }
+            }
+        }
+
+        return facMembers;
+    }
+
+    /**
+     * Parses the CAIDA IX dataset to map IXPs to their AS members
+     * @param ix_file File that contains information about individual IXPs
+     * @param ixasn_file File that maps ASes to the IXPs where they are present
+     * @return the mapping between each IXP and the list of ASNs connected to the IXP
+     */
     static HashMap<String, List<String>> getIXPMembers(String ix_file, String ixasn_file) {
         HashMap<String, List<String>> ixpMembers = new HashMap<>();
         HashMap<String, String> ixpIdNames = new HashMap<>();
@@ -46,15 +80,15 @@ class IXPDataParser {
 
     /**
      * Queries the PeeringDB and Euro-IX data to collect the ASNs used by IXP route servers
-     * @return HashSet<Integer> The set of Route Server ASNs
+     * @param pdbUrl The URL to the PeeringDB endpoint to query ASNs of type Route Server
+     * @param euroixUrl The URL to the Euro-IX endpoint that provides data about IXP properties
+     * @return HashMap<String, String> The mapping between Route Server ASNs and the corresponding IXP names
      */
-    static HashMap<String, String> getRouteServerASNs() {
-        String pdbUrl = "https://www.peeringdb.com/api/net?info_type=Route%20Server";
-        String euroixUrl = "https://www.euro-ix.net/csv/ixp-service-matrix";
+    static HashMap<String, String> getRouteServerASNs(String pdbUrl, String euroixUrl) {
         ArrayList<String> pdbResponse = IXPDataParser.sendGet(pdbUrl);
         ArrayList<String> euroixResponse = IXPDataParser.sendGet(euroixUrl);
         JSONObject pdbData = IXPDataParser.parseJson(String.join("", pdbResponse));
-        HashMap<String, String> rsASNs = IXPDataParser.parsePdbData(pdbData);
+        HashMap<String, String> rsASNs = IXPDataParser.parsePdbRsAutsysData(pdbData);
         if (euroixResponse != null){
             rsASNs.putAll(IXPDataParser.parseEuroIXData(euroixResponse));
         }
@@ -97,13 +131,13 @@ class IXPDataParser {
      * @param jsonString The string that represents a JSON object
      * @return JSONObject The decoded JSON object
      */
-    private static JSONObject parseJson(String jsonString){
+    private static JSONObject parseJson(String jsonString) {
         JSONObject jsonObject = null;
         JSONParser parser = new JSONParser();
-        try{
+        try {
             Object obj = parser.parse(jsonString);
             jsonObject = (JSONObject) obj;
-        }catch(ParseException pe){
+        } catch (ParseException pe) {
 
             System.out.println("position: " + pe.getPosition());
             System.out.println(pe);
@@ -112,12 +146,13 @@ class IXPDataParser {
         return jsonObject;
     }
 
+
     /**
      * Parse the PeeringDB JSON response to extract and return the Route Server ASNs
      * @param pdbResponse The JSON response from the PeeringDB API
-     * @return HashSet<Integer> The set of Route Server ASNs
+     * @return HashMap<String, String> The mapping between Route Server ASNs and the corresponding IXP names
      */
-    private static HashMap<String, String> parsePdbData(JSONObject pdbResponse){
+    private static HashMap<String, String> parsePdbRsAutsysData(JSONObject pdbResponse){
         HashMap<String, String> asns = new HashMap<>();
         JSONArray nets_array = (JSONArray) pdbResponse.get("data");
         if (nets_array != null){
@@ -140,7 +175,7 @@ class IXPDataParser {
     /**
      * Parse the Euro-IX CSV file with the IXP data to get the Route Server & IXP ASNs
      * @param euroixResponse The lines of the Euro-IX CSV file
-     * @return HashSet<Integer> The set of Route Server and IXP ASNs
+     * @return HashMap<String, String> The mapping between Route Server ASNs and the corresponding IXP names
      */
     private static HashMap<String, String> parseEuroIXData(ArrayList<String> euroixResponse) {
         HashMap<String, String> asns = new HashMap<>();

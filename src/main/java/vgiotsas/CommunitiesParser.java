@@ -11,6 +11,7 @@ class CommunitiesParser {
 
     private HashMap<String, String> routeServerASNs;
     private HashMap<String, List<String>> ixpMembers = null;
+    private HashMap<String, List<String>> facMembers = null;
     private HashMap<String, Integer> relationships = null;
     private HashMap<String, String> properties;
 
@@ -22,13 +23,22 @@ class CommunitiesParser {
      * Executes the different phases of the parsing process
      */
     void startParser(){
-        this.ixpMembers = IXPDataParser.getIXPMembers(properties.get("ix_dataset"), properties.get("ix_asn_dataset"));
-        this.relationships = readRelationships(properties.get("relationships_file"));
-        this.routeServerASNs = IXPDataParser.getRouteServerASNs();
+        // Read the external datasets
+        this.ixpMembers = IXPDataParser.getIXPMembers(
+                this.properties.get("ix_dataset"),
+                this.properties.get("ix_asn_dataset"));
+
+        this.relationships = readRelationships(this.properties.get("relationships_file"));
+
+        this.routeServerASNs = IXPDataParser.getRouteServerASNs(
+                this.properties.get("pdb_rsasn_url"),
+                this.properties.get("euroix_url"));
+
+        this.facMembers = IXPDataParser.getFacilityMembers(this.properties.get("pdb_netfac_url"));
 
         String optionalArgs = this.constructOptionalArgs(
-                properties.get("collectors"),
-                properties.get("communities"),
+                this.properties.get("collectors"),
+                this.properties.get("communities"),
                 "",
                 "");
         // Run an initial pass to find if there are any routes annotated with the target communities
