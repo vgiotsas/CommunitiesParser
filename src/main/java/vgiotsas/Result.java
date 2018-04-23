@@ -5,7 +5,7 @@ import java.util.*;
 class Result {
 
     class TimeLine{
-        HashMap<Integer, Integer> pathsByTs;
+        HashMap<Integer, Integer> pathsByTs = new HashMap<>();
     }
 
     private HashSet<String> collectors;
@@ -27,7 +27,8 @@ class Result {
 
     private void updateTimeline(String community, List<Integer> timestamps, int value){
         for (int ts : timestamps){
-            if (!this.communitiesTimeline.get(community).pathsByTs.containsKey(ts)){
+            HashMap<Integer, Integer> pathsByTs =  this.communitiesTimeline.get(community).pathsByTs;
+            if (!pathsByTs.containsKey(ts)){
                 this.communitiesTimeline.get(community).pathsByTs.put(ts, value);
             }
             else{
@@ -40,14 +41,14 @@ class Result {
     }
 
     HashMap<String, TimeLine> getCommunitiesTimeline(){
-        communitiesTimeline = new HashMap<>();
+        this.communitiesTimeline = new HashMap<>();
         for (String peerIp : this.routes.keySet()){
             for (String prefix : this.routes.get(peerIp).keySet()){
                 String community = this.routes.get(peerIp).get(prefix).getTargetCommunity();
                 List<Integer> activated = this.routes.get(peerIp).get(prefix).getTsActivated();
                 List<Integer> withdrawn = this.routes.get(peerIp).get(prefix).getTsWithdrawn();
-                if (!communitiesTimeline.containsKey(community)){
-                    communitiesTimeline.put(community, new TimeLine());
+                if (!this.communitiesTimeline.containsKey(community)){
+                    this.communitiesTimeline.put(community, new TimeLine());
                 }
                 updateTimeline(community, activated, 1);
                 updateTimeline(community, withdrawn, -1);
