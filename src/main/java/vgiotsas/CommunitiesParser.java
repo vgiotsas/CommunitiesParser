@@ -25,6 +25,7 @@ class CommunitiesParser {
         this.ixpMembers = IXPDataParser.getIXPMembers(properties.get("ix_dataset"), properties.get("ix_asn_dataset"));
         this.relationships = readRelationships(properties.get("relationships_file"));
         this.routeServerASNs = IXPDataParser.getRouteServerASNs();
+
         String optionalArgs = this.constructOptionalArgs(
                 properties.get("collectors"),
                 properties.get("communities"),
@@ -50,28 +51,69 @@ class CommunitiesParser {
                     "",
                     String.join(", ", result.getPeers()),
                     String.join(", ", result.getPrefixes())
-                    );
+            );
             result.setRoutes(filterUnstablePaths(optionalArgs, result.getRoutes(), start_ts, stability_end));
             // check if there are any routes left after filtering-out the unstable ones
             routesNum = 0;
             for (String k: result.getRoutes().keySet()) {
                 routesNum += result.getRoutes().get(k).size();
             }
-            System.out.println("Annotated routes after initial pass: " + routesNum);
+            System.out.println("Annotated routes after filtering: " + routesNum);
             // if we still have annotated routes left, start monitoring their updates for the duration of the measurement period
             if (routesNum > 0){
                 int monitoring_end = Integer.parseInt(this.properties.get("end"));
                 optionalArgs = this.constructOptionalArgs(
                         String.join(", ", result.getCollectors()),
                         "",
-                        String.join(", ", result.getRoutes().keySet()),
+                        String.join(", ", result.getPeers()),
                         String.join(", ", result.getPrefixes())
                 );
                 result.setRoutes(monitorAnnotatedPaths(optionalArgs, result.getRoutes(), stability_end, monitoring_end));
                 // Parse the results to generate the timeline of routes annotated with target communities
                 HashMap<String, Result.TimeLine> communitiesTimeline = result.getCommunitiesTimeline();
+                // Write the results to a file
+                writeResults(stability_end, monitoring_end, communitiesTimeline);
             }
         }
+    }
+
+    private void writeResults(int startTs, int endTs, HashMap<String, Result.TimeLine> communitiesTimeline){
+        PrintWriter writer = null;
+        try {
+
+            for (String community : communitiesTimeline.keySet()){
+                writer = new PrintWriter(community+"-results.txt", "UTF-8");
+                Map<Integer, Integer> tsMap = new TreeMap<>(communitiesTimeline.get(community).pathsByTs);
+                //Set<Integer, Integer> timestamps = tsMap.entrySet();
+
+                int nextMinute = startTs;
+                Map.Entry<Integer, Integer> tsEntry = tsMap.entrySet().iterator().next();
+                int nextTs = tsEntry.getKey();
+                int nextValue = tsEntry.getValue();
+                int totalPaths = nextValue;
+                while (nextMinute < endTs){
+                    while (nextTs >= nextMinute && nextTs < nextMinute + 180){
+                        totalPaths += nextValue;
+                        if (tsMap.entrySet().iterator().hasNext()){
+                            tsEntry = tsMap.entrySet().iterator().next();
+                            nextTs = tsEntry.getKey();
+                            nextValue = tsEntry.getValue();
+                        }
+                        else{
+                            break;
+                        }
+                    }
+                    writer.println(nextMinute + "\t" + totalPaths);
+                    nextMinute += 180;
+                }
+
+                writer.close();
+            }
+
+        } catch (FileNotFoundException | UnsupportedEncodingException e) {
+            e.printStackTrace();
+        }
+
     }
 
     /**
@@ -132,7 +174,7 @@ class CommunitiesParser {
     }
 
     /**
-     * Constructs the optional communities and collectors arguments of the BGPReader command based on the
+     * Constructs the optional communities, collectors, peers and prefixes arguments of the BGPReader command based on the
      * comma-separated strings provided by the user command-line arguments.
      * @param collectors comma-separated list of BGP collectors
      * @param communities comma-separated list of BGP communities
@@ -434,22 +476,20 @@ class CommunitiesParser {
                     String peerIp = bgpFields[8];
                     String prefix = bgpFields[9];
 
-                    if (bgpFields[1].equals("A")) {
-
-                        // If the route is not annotated with the target community, set the status to withrawn,
-                        // otherwise set the status to activated (if it has previously withdrawn).
-                        if (annotatedRoutes.containsKey(peerIp) && annotatedRoutes.get(peerIp).containsKey(prefix)) {
+                    if (annotatedRoutes.containsKey(peerIp) && annotatedRoutes.get(peerIp).containsKey(prefix)) {
+                        if (bgpFields[1].equals("A")) {
+                            // If the route is not annotated with the target community, set the status to withrawn,
+                            // otherwise set the status to activated (if it has previously withdrawn).
                             List<String> attachedCommunities = Arrays.asList(bgpFields[13].split(" "));
                             Route r = annotatedRoutes.get(peerIp).get(prefix);
                             r.updateStatus(attachedCommunities.contains(r.getTargetCommunity()) ? 1 : 0, timestamp);
                         }
+                        // If the route was withdrawn set the status to withdrawn
+                        else if (bgpFields[1].equals("W")) {
+                            Route r = annotatedRoutes.get(peerIp).get(prefix);
+                            r.updateStatus(0, timestamp);
+                        }
                     }
-                    // If the route was withdrawn set the status to withdrawn
-                    else if (bgpFields[1].equals("W")) {
-                        Route r = annotatedRoutes.get(peerIp).get(prefix);
-                        r.updateStatus(0, timestamp);
-                    }
-
                 }
             }
 
