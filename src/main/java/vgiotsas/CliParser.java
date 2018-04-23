@@ -34,6 +34,11 @@ class CliParser {
             usage="Path to the output directory.")
     private String outdir = ".";
 
+    @Option(name="--facilities",
+            required=false,
+            usage="Comma-separated list of facility names to restrict the scope of the analyzed AS links.")
+    private String facilities = "all";
+
     /**
      *
      * @param dateString a string that represents a human readable datetime in format yyyyMMdd.hh (e.g. 20180224.0117)
@@ -99,6 +104,7 @@ class CliParser {
         cliArgs.put("end", Long.toString(endTs));
         cliArgs.put("collectors", this.collectors);
         cliArgs.put("outdir", this.outdir);
+        cliArgs.put("facilities", this.facilities);
         return cliArgs;
     }
 }
