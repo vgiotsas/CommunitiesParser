@@ -87,17 +87,24 @@ class CommunitiesParser {
                 //Set<Integer, Integer> timestamps = tsMap.entrySet();
 
                 int nextMinute = startTs;
-                Map.Entry<Integer, Integer> tsEntry = tsMap.entrySet().iterator().next();
-                int nextTs = tsEntry.getKey();
-                int nextValue = tsEntry.getValue();
-                int totalPaths = nextValue;
+                Iterator<Integer> itr = tsMap.keySet().iterator();
+                int nextTs = itr.next();
+                //Map.Entry<Integer, Integer> tsEntry = tsMap.entrySet().iterator().next();
+                //int nextTs = tsEntry.getKey();
+                int nextValue = tsMap.get(nextTs);
+                int totalPaths = 0;
+                while (nextTs < nextMinute){
+                    totalPaths += nextValue;
+                    nextTs = itr.next();
+                    nextValue = tsMap.get(nextTs);
+                }
+
                 while (nextMinute < endTs){
                     while (nextTs >= nextMinute && nextTs < nextMinute + 180){
                         totalPaths += nextValue;
-                        if (tsMap.entrySet().iterator().hasNext()){
-                            tsEntry = tsMap.entrySet().iterator().next();
-                            nextTs = tsEntry.getKey();
-                            nextValue = tsEntry.getValue();
+                        if (itr.hasNext()){
+                            nextTs = itr.next();
+                            nextValue = tsMap.get(nextTs);
                         }
                         else{
                             break;
