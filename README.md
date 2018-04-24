@@ -18,3 +18,8 @@ java BGPCommunitiesMon.jar [options...] arguments...
 
   Example: java BGPCommunitiesParser.jar --collectors rrc03 --communities 6695:6695,13030:51203 --outdir path/to/dir/ --period 20180407.0000,20180410.0001
 ```
+
+## How to set up
+
+BGOCommunitiesMon uses BGPReader  v2.0 to obtain a stream of BGP data,
+therefore you need to install [BGPStream](https://bgpstream.caida.org/v2-beta).
