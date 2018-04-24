@@ -43,6 +43,16 @@ class CliParser {
             usage="Comma-separated list of facility names to restrict the scope of the analyzed AS links.")
     private String facilities = defaultFacilities;
 
+    @Option(name="--overlap",
+            required=false,
+            depends={"--facilities"},
+            usage="Number of maximum overlapping facilities between the near-end and far-end ASes " +
+                    "in the cities of the facilities defined in the `--facilities` parameter.")
+    private int overlap=-1;
+
+    @Option(name = "-h", aliases = "--help", required = false, usage = "Print help text")
+    private boolean printHelp = false;
+
     /**
      *
      * @param dateString a string that represents a human readable datetime in format yyyyMMdd.hh (e.g. 20180224.0117)
@@ -69,6 +79,13 @@ class CliParser {
         try {
             // parse the arguments.
             parser.parseArgument(args);
+
+            if (this.printHelp) {
+                System.err.println("Usage:");
+                parser.printUsage(System.err);
+                System.err.println();
+                System.exit(0);
+            }
         } catch( CmdLineException e ) {
             System.err.println(e.getMessage());
             System.err.println("java BGPCommunitiesParser.jar [options...] arguments...");
@@ -109,6 +126,7 @@ class CliParser {
         cliArgs.put("collectors", this.collectors);
         cliArgs.put("outdir", this.outdir);
         cliArgs.put("facilities", this.facilities);
+        cliArgs.put("overlap", Long.toString(this.overlap));
         return cliArgs;
     }
 
