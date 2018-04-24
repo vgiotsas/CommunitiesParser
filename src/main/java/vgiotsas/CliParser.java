@@ -14,6 +14,10 @@ import static org.kohsuke.args4j.ExampleMode.ALL;
 
 class CliParser {
 
+    private final static String defaultCollectors = "all";
+
+    private final static String defaultFacilities = "all";
+
     @Option(name = "--period",
             required=true,
             usage="Time period for which BGP data will be collected.\nFormat: YYYYMMDD.hhmm,YYYYMMDD.hhmm")
@@ -27,7 +31,7 @@ class CliParser {
     @Option(name="--collectors",
             required=false,
             usage="Comma-separated list of BGP Collectors.")
-    private String collectors = "all";
+    private String collectors = defaultCollectors;
 
     @Option(name="--outdir",
             required=false,
@@ -37,7 +41,7 @@ class CliParser {
     @Option(name="--facilities",
             required=false,
             usage="Comma-separated list of facility names to restrict the scope of the analyzed AS links.")
-    private String facilities = "all";
+    private String facilities = defaultFacilities;
 
     /**
      *
@@ -106,5 +110,13 @@ class CliParser {
         cliArgs.put("outdir", this.outdir);
         cliArgs.put("facilities", this.facilities);
         return cliArgs;
+    }
+
+    public static String getDefaultCollectors() {
+        return defaultCollectors;
+    }
+
+    public static String getDefaultFacilities() {
+        return defaultFacilities;
     }
 }
