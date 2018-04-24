@@ -11,8 +11,7 @@ import java.util.*;
 class CommunitiesParser {
 
     private HashMap<String, String> routeServerASNs;
-    private HashMap<String, List<String>> ixpMembers = null;
-    private HashMap<String, List<String>> facMembers = null;
+    private IXPDataParser.ColocationMap coloMap;
     private HashMap<String, Integer> relationships = null;
     private HashMap<String, String> properties;
 
@@ -24,18 +23,20 @@ class CommunitiesParser {
      * Executes the different phases of the parsing process
      */
     void startParser(){
-        // Read the external datasets
-        this.ixpMembers = IXPDataParser.getIXPMembers(
+        // Construct the colocation map
+        coloMap = IXPDataParser.getColoMap(
+                this.properties.get("pdb_netfac_url"),
                 this.properties.get("ix_dataset"),
-                this.properties.get("ix_asn_dataset"));
+                this.properties.get("ix_asn_dataset")
+        );
+
+        // Read the external datasets
 
         this.relationships = readRelationships(this.properties.get("relationships_file"));
 
         this.routeServerASNs = IXPDataParser.getRouteServerASNs(
                 this.properties.get("pdb_rsasn_url"),
                 this.properties.get("euroix_url"));
-
-        this.facMembers = IXPDataParser.getFacilityMembers(this.properties.get("pdb_netfac_url"));
 
         String optionalArgs = this.constructOptionalArgs(
                 this.properties.get("collectors"),
@@ -259,12 +260,12 @@ class CommunitiesParser {
                 farEnd = path.get(hopIndex + 1);
             }
             // case 2
-            else if(this.ixpMembers.containsKey(ixpName)) {
+            else if(this.coloMap.ixpMembers.containsKey(ixpName)) {
                 int index = 0;
                 int neIndex = -1;
                 int feIndex = -1;
                 for(String hop: path){
-                    if(this.ixpMembers.get(ixpName).contains(hop)){
+                    if(this.coloMap.ixpMembers.get(ixpName).contains(hop)){
                         if (neIndex == -1){
                             nearEnd = hop;
                             neIndex = index;
@@ -371,7 +372,7 @@ class CommunitiesParser {
                                     parseRoute = false;
                                     if (!annotatedHops[1].isEmpty()){
                                         for (String facility : targetFacilities){
-                                            if (this.facMembers.containsKey(facility) && this.facMembers.get(facility).contains(annotatedHops[1])){
+                                            if (this.coloMap.facMembers.containsKey(facility) && this.coloMap.facMembers.get(facility).contains(annotatedHops[1])){
                                                 parseRoute = true;
                                                 break;
                                             }
