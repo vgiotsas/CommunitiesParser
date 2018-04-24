@@ -5,6 +5,7 @@ import org.apache.commons.compress.compressors.CompressorInputStream;
 import org.apache.commons.compress.compressors.CompressorStreamFactory;
 
 import java.io.*;
+import java.lang.reflect.Array;
 import java.util.*;
 
 class CommunitiesParser {
@@ -44,7 +45,11 @@ class CommunitiesParser {
         // Run an initial pass to find if there are any routes annotated with the target communities
         int start_ts = Integer.parseInt(this.properties.get("start"));
         int init_start = start_ts - 3600*24;
-        Result result = getAnnotatedPaths(optionalArgs, init_start, start_ts);
+        List<String> requestedFacilities = new ArrayList<>();
+        if (!this.properties.get("facilities").equals(CliParser.getDefaultFacilities())){
+            requestedFacilities = Arrays.asList(this.properties.get("facilities").split(","));
+        }
+        Result result = getAnnotatedPaths(optionalArgs, init_start, start_ts, requestedFacilities);
 
         // If the initial pass discovered annotated routes, filter-out the unstable ones
         int routesNum = 0;
@@ -200,7 +205,7 @@ class CommunitiesParser {
     private String constructOptionalArgs(String collectors, String communities, String peers, String prefixes){
         StringBuilder args = new StringBuilder();
 
-        if (!collectors.isEmpty()) {
+        if (!collectors.isEmpty() && !collectors.equals(CliParser.getDefaultCollectors())) {
             for (String c : collectors.split(",")) {
                 args.append(" -c ").append(c);
             }
@@ -316,7 +321,7 @@ class CommunitiesParser {
      * @return Result object that stores the results of the BGP parsing process, including the annotated routes,
      * and the collectors, peers, and prefixes with annotated annotated routes.
      */
-    private Result getAnnotatedPaths(String optionalArgs, int init_start, int init_end){
+    private Result getAnnotatedPaths(String optionalArgs, int init_start, int init_end, List<String> targetFacilities){
         String command = properties.get("bgpreader_bin") +
                 " -w " + init_start  + "," + init_end +
                 " -t ribs" +
@@ -359,21 +364,38 @@ class CommunitiesParser {
                             // if the top16 bits correspond to a Route Server ASN
                             String[] annotatedHops = this.mapCommunityToLink(path, top16bits);
                             if (!annotatedHops[0].isEmpty()){
-                                Route annotatedRoute = new Route(
-                                        community,
-                                        attachedCommunities,
-                                        annotatedHops[0],
-                                        annotatedHops[1],
-                                        prefix,
-                                        peerIp);
-                                annotatedRoute.updateStatus(1, timestamp);
-                                if (!annotatedRoutes.containsKey(peerIp)){
-                                    annotatedRoutes.put(peerIp, new HashMap<>());
+                                boolean parseRoute = true;
+                                // If certain facilities have been requested, check if the far-end hop is colocated in
+                                // the target facilities
+                                if (!targetFacilities.isEmpty()){
+                                    parseRoute = false;
+                                    if (!annotatedHops[1].isEmpty()){
+                                        for (String facility : targetFacilities){
+                                            if (this.facMembers.containsKey(facility) && this.facMembers.get(facility).contains(annotatedHops[1])){
+                                                parseRoute = true;
+                                                break;
+                                            }
+                                        }
+                                    }
+
                                 }
-                                annotatedRoutes.get(peerIp).put(prefix, annotatedRoute);
-                                usefulCollectors.add(bgpFields[4]);
-                                usefulPeers.add(bgpFields[7]);
-                                usefulPrefixes.add(prefix);
+                                if (parseRoute){
+                                    Route annotatedRoute = new Route(
+                                            community,
+                                            attachedCommunities,
+                                            annotatedHops[0],
+                                            annotatedHops[1],
+                                            prefix,
+                                            peerIp);
+                                    annotatedRoute.updateStatus(1, timestamp);
+                                    if (!annotatedRoutes.containsKey(peerIp)){
+                                        annotatedRoutes.put(peerIp, new HashMap<>());
+                                    }
+                                    annotatedRoutes.get(peerIp).put(prefix, annotatedRoute);
+                                    usefulCollectors.add(bgpFields[4]);
+                                    usefulPeers.add(bgpFields[7]);
+                                    usefulPrefixes.add(prefix);
+                                }
                             }
                         }
                     }
