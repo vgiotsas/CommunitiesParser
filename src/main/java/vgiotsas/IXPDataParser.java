@@ -13,35 +13,62 @@ import org.json.simple.parser.ParseException;
 
 class IXPDataParser {
 
+    static class ColocationMap{
+        // Maps facility -> ASes in this facility
+        HashMap<String, List<String>> facMembers = new HashMap<>();
+        HashMap<String, List<String>> ixpMembers = new HashMap<>();
+        // Maps city -> Facilities in this city
+        HashMap<String, List<String>> cityFacilities = new HashMap<>();
+        // Maps AS -> location -> Facilities in this location
+        HashMap<String, HashMap<String, List<String>>> autsysFacilities = new HashMap<>();
+    }
+
     private static final String USER_AGENT = "Mozilla/5.0";
 
-    /**
-     * Extract and facility AS members from PeeringDB
-     * @param pdbFacUrl The URL of the PeeringDB API endpoint
-     * @return HashMap<String, List<String>> The mapping between facility names and the ASNs present at them
-     */
-    static HashMap<String, List<String>> getFacilityMembers(String pdbFacUrl){
+    static ColocationMap getColoMap(String pdbFacUrl, String ix_file, String ixasn_file) {
+        ColocationMap coloMap = new ColocationMap();
+
         ArrayList<String> pdbResponse = IXPDataParser.sendGet(pdbFacUrl);
         JSONObject pdbData = IXPDataParser.parseJson(String.join("", pdbResponse));
-        HashMap<String, List<String>> facMembers = new HashMap<>();
         JSONArray nets_array = (JSONArray) pdbData.get("data");
-        if (nets_array != null){
+        if (nets_array != null) {
             for (Object obj : nets_array) {
                 if (obj instanceof JSONObject) {
                     JSONObject jsonObj = (JSONObject) obj;
 
                     String asn = Integer.toString((int) (long) jsonObj.get("local_asn"));
                     String name = jsonObj.get("name").toString();
-                    if (!facMembers.containsKey(name)) {
-                        facMembers.put(name, new ArrayList<>());
+                    String city = jsonObj.get("city").toString();
+                    String country = jsonObj.get("country").toString();
+                    String location = city+":"+country;
+                    // Add the Facility-to-AS presence
+                    if (!coloMap.facMembers.containsKey(name)) {
+                        coloMap.facMembers.put(name, new ArrayList<>());
                     }
-                    facMembers.get(name).add(asn);
+                    coloMap.facMembers.get(name).add(asn);
+                    // Add the city-to-facility presence
+                    if (!coloMap.cityFacilities.containsKey(location)) {
+                        coloMap.cityFacilities.put(location, new ArrayList<>());
+                    }
+                    coloMap.cityFacilities.get(location).add(name);
+                    // Add the AS-to-Facility presence
+                    if (!coloMap.autsysFacilities.containsKey(asn)) {
+                        coloMap.autsysFacilities.put(asn, new HashMap<>());
+                    }
+                    if (!coloMap.autsysFacilities.get(asn).containsKey(location)){
+                        coloMap.autsysFacilities.get(asn).put(location, new ArrayList<>());
+                    }
+                    coloMap.autsysFacilities.get(asn).get(location).add(name);
                 }
             }
         }
 
-        return facMembers;
+        coloMap.ixpMembers = getIXPMembers(ix_file, ixasn_file);
+
+        return coloMap;
     }
+
+
 
     /**
      * Parses the CAIDA IX dataset to map IXPs to their AS members
