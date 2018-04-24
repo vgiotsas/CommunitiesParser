@@ -516,7 +516,7 @@ class CommunitiesParser {
                     String prefix = bgpFields[9];
 
                     if (annotatedRoutes.containsKey(peerIp) && annotatedRoutes.get(peerIp).containsKey(prefix)) {
-                        if (bgpFields[1].equals("A")) {
+                        if (bgpFields[1].equals("A") && bgpFields.length > 13) {
                             // If the route is not annotated with the target community, set the status to withrawn,
                             // otherwise set the status to activated (if it has previously withdrawn).
                             List<String> attachedCommunities = Arrays.asList(bgpFields[13].split(" "));
