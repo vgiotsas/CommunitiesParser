@@ -14,7 +14,7 @@ public class Main {
         HashMap<String, String> properties = cfgReader.getPropValues();
         arguments.putAll(properties);
         // Start the parser
-        CommunitiesParser communitiesParser = new CommunitiesParser(arguments);
-        communitiesParser.startParser();
+        Parser parser = new CommunitiesParser(arguments);
+        parser.startParser();
     }
 }
