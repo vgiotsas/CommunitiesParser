@@ -7,10 +7,10 @@ import org.apache.commons.compress.compressors.CompressorStreamFactory;
 import java.io.*;
 import java.util.*;
 
-class CommunitiesParser {
+class CommunitiesParser implements Parser {
 
     private HashMap<String, String> routeServerASNs;
-    private IXPDataParser.ColocationMap coloMap;
+    private PeeringCartographer.ColocationMap coloMap;
     private HashMap<String, Integer> relationships = null;
     private HashMap<String, String> properties;
 
@@ -21,9 +21,10 @@ class CommunitiesParser {
     /**
      * Executes the different phases of the parsing process
      */
-    void startParser(){
+    @Override
+    public void startParser(){
         // Construct the colocation map
-        coloMap = IXPDataParser.getColoMap(
+        coloMap = PeeringCartographer.getColoMap(
                 this.properties.get("pdb_netfac_url"),
                 this.properties.get("ix_dataset"),
                 this.properties.get("ix_asn_dataset")
@@ -33,7 +34,7 @@ class CommunitiesParser {
 
         this.relationships = readRelationships(this.properties.get("relationships_file"));
 
-        this.routeServerASNs = IXPDataParser.getRouteServerASNs(
+        this.routeServerASNs = PeeringCartographer.getRouteServerASNs(
                 this.properties.get("pdb_rsasn_url"),
                 this.properties.get("euroix_url"));
 
@@ -93,7 +94,8 @@ class CommunitiesParser {
         }
     }
 
-    private void writeResults(int startTs, int endTs, HashMap<String, Result.TimeLine> communitiesTimeline){
+    @Override
+    public void writeResults(int startTs, int endTs, HashMap<String, Result.TimeLine> communitiesTimeline){
         PrintWriter writer = null;
         try {
 
@@ -144,7 +146,8 @@ class CommunitiesParser {
      * @param path The AS path that is possibly prepended
      * @return an ArrayList with the hops in the non-prepended path
      */
-    private ArrayList<String> removePrepending(String[] path) {
+    @Override
+    public ArrayList<String> removePrepending(String[] path) {
 
         ArrayList<String> npPath = new ArrayList<>();
         // Always add first value
@@ -170,7 +173,8 @@ class CommunitiesParser {
      * @param fileIn the path to the bz2 relationship file
      * @return the mapping between AS links and relationship type
      */
-    private HashMap<String, Integer> readRelationships(String fileIn) {
+    @Override
+    public HashMap<String, Integer> readRelationships(String fileIn) {
         HashMap<String, Integer> relationships = new HashMap<>();
         try {
             FileInputStream fin = new FileInputStream(fileIn);
@@ -203,7 +207,8 @@ class CommunitiesParser {
      * @param communities comma-separated list of BGP communities
      * @return the bgpreader arguments for the collectors and communities
      */
-    private String constructOptionalArgs(String collectors, String communities, String peers, String prefixes){
+    @Override
+    public String constructOptionalArgs(String collectors, String communities, String peers, String prefixes){
         StringBuilder args = new StringBuilder();
 
         if (!collectors.isEmpty() && !collectors.equals(CliParser.getDefaultCollectors())) {
@@ -240,7 +245,8 @@ class CommunitiesParser {
      * @param communityTop16 the top 16 bits of the community value
      * @return String[] the annotated AS link (near-end and far-end hop)
      */
-    private String[] mapCommunityToLink(ArrayList<String> path, String communityTop16){
+    @Override
+    public String[] mapCommunityToLink(ArrayList<String> path, String communityTop16){
         String nearEnd = "";
         String farEnd = "";
         int hopIndex = -1;
@@ -322,7 +328,8 @@ class CommunitiesParser {
      * @return Result object that stores the results of the BGP parsing process, including the annotated routes,
      * and the collectors, peers, and prefixes with annotated annotated routes.
      */
-    private Result getAnnotatedPaths(String optionalArgs, int init_start, int init_end, List<String> targetFacilities, int requestedOverlap){
+    @Override
+    public Result getAnnotatedPaths(String optionalArgs, int init_start, int init_end, List<String> targetFacilities, int requestedOverlap){
         String command = properties.get("bgpreader_bin") +
                 " -w " + init_start  + "," + init_end +
                 " -t ribs" +
@@ -426,7 +433,8 @@ class CommunitiesParser {
      * @return Object that stores the results of the BGP parsing process, including the annotated routes, the
      * collectors, peers, and prefixes with annotated annotated routes.
      */
-    private HashMap<String, HashMap<String, Route>> filterUnstablePaths(
+    @Override
+    public HashMap<String, HashMap<String, Route>> filterUnstablePaths(
             String optionalArgs, HashMap<String,
             HashMap<String, Route>> initialRoutes,
             int start_ts,
@@ -490,7 +498,8 @@ class CommunitiesParser {
      * @return Object that stores the results of the BGP parsing process, including the annotated routes, and the
      * collectors, peers, and prefixes with annotated annotated routes.
      */
-    private HashMap<String, HashMap<String, Route>> monitorAnnotatedPaths(
+    @Override
+    public HashMap<String, HashMap<String, Route>> monitorAnnotatedPaths(
             String optionalArgs, HashMap<String,
             HashMap<String, Route>> annotatedRoutes,
             int start_ts,
