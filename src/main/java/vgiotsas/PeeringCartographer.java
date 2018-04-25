@@ -1,35 +1,28 @@
 package vgiotsas;
 
-import java.io.*;
-import java.net.URL;
-import java.nio.file.Files;
-import java.util.*;
-import java.net.HttpURLConnection;
-
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 
-class IXPDataParser {
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
 
-    static class ColocationMap{
-        // Maps facility -> ASes in this facility
-        HashMap<String, List<String>> facMembers = new HashMap<>();
-        HashMap<String, List<String>> ixpMembers = new HashMap<>();
-        // Maps city -> Facilities in this city
-        HashMap<String, List<String>> cityFacilities = new HashMap<>();
-        // Maps AS -> location -> Facilities in this location
-        HashMap<String, HashMap<String, List<String>>> autsysFacilities = new HashMap<>();
-    }
-
-    private static final String USER_AGENT = "Mozilla/5.0";
-
+public interface PeeringCartographer {
     static ColocationMap getColoMap(String pdbFacUrl, String ix_file, String ixasn_file) {
         ColocationMap coloMap = new ColocationMap();
 
-        ArrayList<String> pdbResponse = IXPDataParser.sendGet(pdbFacUrl);
-        JSONObject pdbData = IXPDataParser.parseJson(String.join("", pdbResponse));
+        ArrayList<String> pdbResponse = PeeringCartographer.sendGet(pdbFacUrl);
+        JSONObject pdbData = PeeringCartographer.parseJson(String.join("", pdbResponse));
         JSONArray nets_array = (JSONArray) pdbData.get("data");
         if (nets_array != null) {
             for (Object obj : nets_array) {
@@ -51,6 +44,8 @@ class IXPDataParser {
                         coloMap.cityFacilities.put(location, new ArrayList<>());
                     }
                     coloMap.cityFacilities.get(location).add(name);
+                    // Add the facility to city mapping
+                    coloMap.facilityCity.put(name, location);
                     // Add the AS-to-Facility presence
                     if (!coloMap.autsysFacilities.containsKey(asn)) {
                         coloMap.autsysFacilities.put(asn, new HashMap<>());
@@ -67,8 +62,6 @@ class IXPDataParser {
 
         return coloMap;
     }
-
-
 
     /**
      * Parses the CAIDA IX dataset to map IXPs to their AS members
@@ -112,12 +105,12 @@ class IXPDataParser {
      * @return HashMap<String, String> The mapping between Route Server ASNs and the corresponding IXP names
      */
     static HashMap<String, String> getRouteServerASNs(String pdbUrl, String euroixUrl) {
-        ArrayList<String> pdbResponse = IXPDataParser.sendGet(pdbUrl);
-        ArrayList<String> euroixResponse = IXPDataParser.sendGet(euroixUrl);
-        JSONObject pdbData = IXPDataParser.parseJson(String.join("", pdbResponse));
-        HashMap<String, String> rsASNs = IXPDataParser.parsePdbRsAutsysData(pdbData);
+        ArrayList<String> pdbResponse = PeeringCartographer.sendGet(pdbUrl);
+        ArrayList<String> euroixResponse = PeeringCartographer.sendGet(euroixUrl);
+        JSONObject pdbData = PeeringCartographer.parseJson(String.join("", pdbResponse));
+        HashMap<String, String> rsASNs = PeeringCartographer.parsePdbRsAutsysData(pdbData);
         if (euroixResponse != null){
-            rsASNs.putAll(IXPDataParser.parseEuroIXData(euroixResponse));
+            rsASNs.putAll(PeeringCartographer.parseEuroIXData(euroixResponse));
         }
         return rsASNs;
     }
@@ -127,9 +120,10 @@ class IXPDataParser {
      * @param url The URL to which the GET request is sent
      * @return ArrayList<String> The list of lines in the response body
      */
-    private static ArrayList<String> sendGet(String url) {
+    static ArrayList<String> sendGet(String url) {
+        String USER_AGENT = "Mozilla/5.0";
 
-        URL obj = null;
+        URL obj;
         ArrayList<String> response = null;
         try {
             obj = new URL(url);
@@ -158,7 +152,7 @@ class IXPDataParser {
      * @param jsonString The string that represents a JSON object
      * @return JSONObject The decoded JSON object
      */
-    private static JSONObject parseJson(String jsonString) {
+    static JSONObject parseJson(String jsonString) {
         JSONObject jsonObject = null;
         JSONParser parser = new JSONParser();
         try {
@@ -173,13 +167,12 @@ class IXPDataParser {
         return jsonObject;
     }
 
-
     /**
      * Parse the PeeringDB JSON response to extract and return the Route Server ASNs
      * @param pdbResponse The JSON response from the PeeringDB API
      * @return HashMap<String, String> The mapping between Route Server ASNs and the corresponding IXP names
      */
-    private static HashMap<String, String> parsePdbRsAutsysData(JSONObject pdbResponse){
+    static HashMap<String, String> parsePdbRsAutsysData(JSONObject pdbResponse){
         HashMap<String, String> asns = new HashMap<>();
         JSONArray nets_array = (JSONArray) pdbResponse.get("data");
         if (nets_array != null){
@@ -204,7 +197,7 @@ class IXPDataParser {
      * @param euroixResponse The lines of the Euro-IX CSV file
      * @return HashMap<String, String> The mapping between Route Server ASNs and the corresponding IXP names
      */
-    private static HashMap<String, String> parseEuroIXData(ArrayList<String> euroixResponse) {
+    static HashMap<String, String> parseEuroIXData(ArrayList<String> euroixResponse) {
         HashMap<String, String> asns = new HashMap<>();
         for (String line : euroixResponse) {
             String[] lf = line.split(",");
@@ -227,4 +220,15 @@ class IXPDataParser {
         return asns;
     }
 
+    class ColocationMap{
+        // Maps facility -> ASes in this facility
+        HashMap<String, List<String>> facMembers = new HashMap<>();
+        HashMap<String, List<String>> ixpMembers = new HashMap<>();
+        // Maps city -> Facilities in this city
+        HashMap<String, List<String>> cityFacilities = new HashMap<>();
+        // Maps facility -> city
+        HashMap<String, String> facilityCity = new HashMap<>();
+        // Maps AS -> location -> Facilities in this location
+        HashMap<String, HashMap<String, List<String>>> autsysFacilities = new HashMap<>();
+    }
 }
