@@ -5,7 +5,6 @@ import org.apache.commons.compress.compressors.CompressorInputStream;
 import org.apache.commons.compress.compressors.CompressorStreamFactory;
 
 import java.io.*;
-import java.lang.reflect.Array;
 import java.util.*;
 
 class CommunitiesParser {
@@ -50,7 +49,8 @@ class CommunitiesParser {
         if (!this.properties.get("facilities").equals(CliParser.getDefaultFacilities())){
             requestedFacilities = Arrays.asList(this.properties.get("facilities").split(","));
         }
-        Result result = getAnnotatedPaths(optionalArgs, init_start, start_ts, requestedFacilities);
+        int requestedOverlap = Integer.parseInt(this.properties.get("overlap"));
+        Result result = getAnnotatedPaths(optionalArgs, init_start, start_ts, requestedFacilities, requestedOverlap);
 
         // If the initial pass discovered annotated routes, filter-out the unstable ones
         int routesNum = 0;
@@ -322,7 +322,7 @@ class CommunitiesParser {
      * @return Result object that stores the results of the BGP parsing process, including the annotated routes,
      * and the collectors, peers, and prefixes with annotated annotated routes.
      */
-    private Result getAnnotatedPaths(String optionalArgs, int init_start, int init_end, List<String> targetFacilities){
+    private Result getAnnotatedPaths(String optionalArgs, int init_start, int init_end, List<String> targetFacilities, int requestedOverlap){
         String command = properties.get("bgpreader_bin") +
                 " -w " + init_start  + "," + init_end +
                 " -t ribs" +
@@ -373,8 +373,12 @@ class CommunitiesParser {
                                     if (!annotatedHops[1].isEmpty()){
                                         for (String facility : targetFacilities){
                                             if (this.coloMap.facMembers.containsKey(facility) && this.coloMap.facMembers.get(facility).contains(annotatedHops[1])){
-                                                parseRoute = true;
-                                                break;
+                                                String facilityCity = this.coloMap.facilityCity.get(facility);
+                                                int overlapSize = this.coloMap.autsysFacilities.get(annotatedHops[1]).get(facilityCity).size();
+                                                if(overlapSize == requestedOverlap || requestedOverlap == -1){
+                                                    parseRoute = true;
+                                                    break;
+                                                }
                                             }
                                         }
                                     }
