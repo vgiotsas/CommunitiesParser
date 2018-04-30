@@ -52,4 +52,22 @@ edit the `resources/config.properties` file to define the following properties:
 The default values in the `resources/config.properties` should work out-of-the-box,
 if you cloned this repository and didn't change the default BGPStream configuration.
 
+### Compile and Run
 
+To compile the code you need to download three external libraries:
+
+ * [args4j](http://central.maven.org/maven2/args4j/args4j/2.33/)
+ * [json-simple](http://central.maven.org/maven2/com/googlecode/json-simple/json-simple/1.1.1/)
+ * [commons-compress](http://central.maven.org/maven2/org/apache/commons/commons-compress/1.16.1/)
+
+After you download the jar files, go to the `src/main/java` directory and compile the code specifying the classpath to the download jars:
+
+```
+javac -cp .:/<download_path>/args4j-2.33.jar:/<download_path>/json-simple-1.1.1.jar:/<download_path>/commons-compress-1.16.1.jar vgiotsas/Main.java
+```
+
+You can then execute the compiled code, including again the classpath to the jar files:
+
+```
+java -cp .:/<download_path>/args4j-2.33.jar:/<download_path>/json-simple-1.1.1.jar:/<download_path>/commons-compress-1.16.1.jar vgiotsas/Main --outdir output --collectors rrc00 --communities 2914:1201 --period 20180407.0000,20180410.0000 --facilities "Interxion Frankfurt (FRA1-12)"
+ ```
