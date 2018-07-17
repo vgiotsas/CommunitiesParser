@@ -19,15 +19,15 @@ public interface Parser {
 
     Result getAnnotatedPaths(String optionalArgs, int init_start, int init_end, List<String> targetFacilities, int requestedOverlap);
 
-    HashMap<String, HashMap<String, Route>> filterUnstablePaths(
-            String optionalArgs, HashMap<String,
-            HashMap<String, Route>> initialRoutes,
+    void filterUnstablePaths(
+            String optionalArgs,
+            //HashMap<String, HashMap<String, Route>> initialRoutes,
             int start_ts,
             int end_ts);
 
-    HashMap<String, HashMap<String, Route>> monitorAnnotatedPaths(
-            String optionalArgs, HashMap<String,
-            HashMap<String, Route>> annotatedRoutes,
+    void monitorAnnotatedPaths(
+            String optionalArgs,
+            //HashMap<String, HashMap<String, Route>> annotatedRoutes,
             int start_ts,
             int end_ts);
 }
