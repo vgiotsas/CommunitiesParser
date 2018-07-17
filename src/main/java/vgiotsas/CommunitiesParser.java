@@ -6,6 +6,7 @@ import org.apache.commons.compress.compressors.CompressorStreamFactory;
 
 import java.io.*;
 import java.util.*;
+import java.time.Instant;
 
 class CommunitiesParser implements Parser {
 
@@ -13,10 +14,33 @@ class CommunitiesParser implements Parser {
     private PeeringCartographer.ColocationMap coloMap;
     private HashMap<String, Integer> relationships = null;
     private HashMap<String, String> properties;
-
+    private static Result result;
+    private static boolean monitoring = false;
     CommunitiesParser(HashMap<String, String> properties) {
         this.properties = properties;
     }
+
+    Thread t1 = new Thread(new Runnable(){
+        public void run(){
+            Date date = new Date();
+            Long currentTs = Instant.now().getEpochSecond();
+
+            try {
+                while(CommunitiesParser.monitoring){
+                    int routesNum = 0;
+                    synchronized (this) {
+                        for (String k : CommunitiesParser.result.getRoutes().keySet()) {
+                            routesNum += CommunitiesParser.result.getRoutes().get(k).size();
+                        }
+                    }
+                    System.out.println(routesNum);
+                    Thread.sleep(60000);
+                }
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+    });
 
     /**
      * Executes the different phases of the parsing process
@@ -50,13 +74,14 @@ class CommunitiesParser implements Parser {
         if (!this.properties.get("facilities").equals(CliParser.getDefaultFacilities())){
             requestedFacilities = Arrays.asList(this.properties.get("facilities").split(","));
         }
+
         int requestedOverlap = Integer.parseInt(this.properties.get("overlap"));
-        Result result = getAnnotatedPaths(optionalArgs, init_start, start_ts, requestedFacilities, requestedOverlap);
+        this.result = getAnnotatedPaths(optionalArgs, init_start, start_ts, requestedFacilities, requestedOverlap);
 
         // If the initial pass discovered annotated routes, filter-out the unstable ones
         int routesNum = 0;
-        for (String k: result.getRoutes().keySet()) {
-            routesNum += result.getRoutes().get(k).size();
+        for (String k: this.result.getRoutes().keySet()) {
+            routesNum += this.result.getRoutes().get(k).size();
         }
 
         System.out.println("Annotated routes after initial pass: " + routesNum);
@@ -64,31 +89,37 @@ class CommunitiesParser implements Parser {
             int stability_seconds = Integer.parseInt(this.properties.get("stability_hours")) * 3600;
             int stability_end = start_ts + stability_seconds;
             optionalArgs = this.constructOptionalArgs(
-                    String.join(", ", result.getCollectors()),
+                    String.join(", ", this.result.getCollectors()),
                     "",
-                    String.join(", ", result.getPeers()),
-                    String.join(", ", result.getPrefixes())
+                    String.join(", ", this.result.getPeers()),
+                    String.join(", ", this.result.getPrefixes())
             );
-            result.setRoutes(filterUnstablePaths(optionalArgs, result.getRoutes(), start_ts, stability_end));
+            this.monitoring = true;
+            t1.start();
+            filterUnstablePaths(optionalArgs, start_ts, stability_end);
             // check if there are any routes left after filtering-out the unstable ones
             routesNum = 0;
-            for (String k: result.getRoutes().keySet()) {
-                routesNum += result.getRoutes().get(k).size();
+            for (String k: this.result.getRoutes().keySet()) {
+                routesNum += this.result.getRoutes().get(k).size();
             }
             System.out.println("Annotated routes after filtering: " + routesNum);
             // if we still have annotated routes left, start monitoring their updates for the duration of the measurement period
             if (routesNum > 0){
                 int monitoring_end = Integer.parseInt(this.properties.get("end"));
                 optionalArgs = this.constructOptionalArgs(
-                        String.join(", ", result.getCollectors()),
+                        String.join(", ", this.result.getCollectors()),
                         "",
-                        String.join(", ", result.getPeers()),
-                        String.join(", ", result.getPrefixes())
+                        String.join(", ", this.result.getPeers()),
+                        String.join(", ", this.result.getPrefixes())
                 );
-                result.setRoutes(monitorAnnotatedPaths(optionalArgs, result.getRoutes(), stability_end, monitoring_end));
+
+                monitorAnnotatedPaths(optionalArgs, stability_end, monitoring_end);
+                this.monitoring = false;
+                System.out.println("Calculate timeline");
                 // Parse the results to generate the timeline of routes annotated with target communities
-                HashMap<String, Result.TimeLine> communitiesTimeline = result.getCommunitiesTimeline();
+                HashMap<String, Result.TimeLine> communitiesTimeline = this.result.getCommunitiesTimeline();
                 // Write the results to a file
+                System.out.println("Write output");
                 writeResults(stability_end, monitoring_end, communitiesTimeline);
             }
         }
@@ -429,17 +460,17 @@ class CommunitiesParser implements Parser {
      * consistently annotated with the target community during the monitoring period.
      *
      * @param optionalArgs optional arguments of the bgpreader command to filter the parsed BGP data
-     * @param initialRoutes the routes initially annotated with a target community
+     * @param start_ts epoch timestamp in seconds that denotes the starting time of the monitoring stream
      * @return Object that stores the results of the BGP parsing process, including the annotated routes, the
      * collectors, peers, and prefixes with annotated annotated routes.
      */
     @Override
-    public HashMap<String, HashMap<String, Route>> filterUnstablePaths(
-            String optionalArgs, HashMap<String,
-            HashMap<String, Route>> initialRoutes,
+    public void filterUnstablePaths(
+            String optionalArgs,
             int start_ts,
             int end_ts)
     {
+        HashMap<String, HashMap<String, Route>> initialRoutes = this.result.getRoutes();
         String command = properties.get("bgpreader_bin") +
                 " -w " + start_ts + "," + end_ts +
                 " -t ribs" +
@@ -483,8 +514,6 @@ class CommunitiesParser implements Parser {
         } catch (IOException e) {
             e.printStackTrace();
         }
-
-        return initialRoutes;
     }
 
     /**
@@ -494,17 +523,15 @@ class CommunitiesParser implements Parser {
      * changed, and a list of timestamps when the route returned to the baseline target community.
      *
      * @param optionalArgs optional arguments of the bgpreader command to filter the parsed BGP data
-     * @param annotatedRoutes the stable routes annotated with a target community
-     * @return Object that stores the results of the BGP parsing process, including the annotated routes, and the
-     * collectors, peers, and prefixes with annotated annotated routes.
+     * @param start_ts the starting time of the monitoring stream
      */
     @Override
-    public HashMap<String, HashMap<String, Route>> monitorAnnotatedPaths(
-            String optionalArgs, HashMap<String,
-            HashMap<String, Route>> annotatedRoutes,
+    public void monitorAnnotatedPaths(
+            String optionalArgs,
             int start_ts,
             int end_ts){
 
+        HashMap<String, HashMap<String, Route>> annotatedRoutes = this.result.getRoutes();
         String command = properties.get("bgpreader_bin") +
                 " -w " + start_ts + "," + end_ts +
                 " -t updates" +
@@ -536,11 +563,13 @@ class CommunitiesParser implements Parser {
                             List<String> attachedCommunities = Arrays.asList(bgpFields[13].split(" "));
                             Route r = annotatedRoutes.get(peerIp).get(prefix);
                             r.updateStatus(attachedCommunities.contains(r.getTargetCommunity()) ? 1 : 0, timestamp);
+                            this.result.setRoute(peerIp, prefix, r);
                         }
                         // If the route was withdrawn set the status to withdrawn
                         else if (bgpFields[1].equals("W")) {
                             Route r = annotatedRoutes.get(peerIp).get(prefix);
                             r.updateStatus(0, timestamp);
+                            this.result.setRoute(peerIp, prefix, r);
                         }
                     }
                 }
@@ -550,8 +579,6 @@ class CommunitiesParser implements Parser {
         } catch (IOException e) {
             e.printStackTrace();
         }
-
-        return annotatedRoutes;
     }
 
 }
