@@ -25,16 +25,16 @@ class Result {
     }
 
 
-    private void updateTimeline(String community, List<Integer> timestamps, int value){
+    private void updateTimeline(String key, List<Integer> timestamps, int value){
         for (int ts : timestamps){
-            HashMap<Integer, Integer> pathsByTs =  this.communitiesTimeline.get(community).pathsByTs;
+            HashMap<Integer, Integer> pathsByTs =  this.communitiesTimeline.get(key).pathsByTs;
             if (!pathsByTs.containsKey(ts)){
-                this.communitiesTimeline.get(community).pathsByTs.put(ts, value);
+                this.communitiesTimeline.get(key).pathsByTs.put(ts, value);
             }
             else{
-                if (this.communitiesTimeline.get(community).pathsByTs.containsKey(ts)){
-                    int previous_paths = this.communitiesTimeline.get(community).pathsByTs.get(ts);
-                    this.communitiesTimeline.get(community).pathsByTs.put(ts, previous_paths + value);
+                if (this.communitiesTimeline.get(key).pathsByTs.containsKey(ts)){
+                    int previous_paths = this.communitiesTimeline.get(key).pathsByTs.get(ts);
+                    this.communitiesTimeline.get(key).pathsByTs.put(ts, previous_paths + value);
                 }
             }
         }
@@ -75,5 +75,16 @@ class Result {
 
     void setRoutes(HashMap<String, HashMap<String, Route>> routes) {
         this.routes = routes;
+    }
+
+    void setRoute(String peerIp, String prefix, Route r){
+        this.routes.get(peerIp).put(prefix, r);
+    }
+
+    void removeRoute(String peerIp, String prefix){
+        this.routes.get(peerIp).remove(prefix);
+        if (this.routes.get(peerIp).size() == 0){
+            this.routes.remove(peerIp);
+        }
     }
 }
