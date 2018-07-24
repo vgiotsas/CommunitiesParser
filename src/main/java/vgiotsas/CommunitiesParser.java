@@ -391,13 +391,12 @@ class CommunitiesParser implements Parser {
                     // For each community attached in the path that is part of the target communities provided by the
                     // user, find which AS link it annotates and inster the annotated BGP route in a HashMap that stores
                     // the annotated routes and the corresponding communities
-                    String[] attachedCommunities = bgpFields[13].split(" ");
+                    String[] attachedCommunities = bgpFields[11].split(" ");
                     String timestamp = bgpFields[2].split("\\.")[0];
-                    String peerIp = bgpFields[8];
-                    String prefix = bgpFields[9];
-
+                    String peerIp = bgpFields[6];
+                    String prefix = bgpFields[7];
                     for (String community: attachedCommunities) {
-                        ArrayList<String> path = removePrepending(bgpFields[11].split(" "));
+                        ArrayList<String> path = removePrepending(bgpFields[9].split(" "));
                         if (targetCommunities.contains(community)){
                             String top16bits = community.split(":")[0];
                             // if the top16 bits correspond to a Route Server ASN
